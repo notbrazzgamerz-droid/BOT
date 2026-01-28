@@ -1,0 +1,95 @@
+import discord
+from discord.ext import commands
+from datetime import datetime
+
+# ---------- INTENTS ----------
+intents = discord.Intents.default()
+intents.members = True
+intents.message_content = True
+
+bot = commands.Bot(command_prefix="-", intents=intents)
+
+# ---------- CONFIG ----------
+FAKE_DAYS = 7  # account newer than this = fake
+
+REAL_ROLE_ID = 111111111111111111   # 🔁 PUT REAL USER ROLE ID
+FAKE_ROLE_ID = 222222222222222222   # 🔁 PUT FAKE USER ROLE ID (optional)
+
+SERVER_IP = "play.pexmc.fun"
+
+# ---------- DATA ----------
+invites = {}
+joins = {}
+
+# ---------- EVENTS ----------
+@bot.event
+async def on_ready():
+    print(f"{bot.user} online 🔥")
+    for guild in bot.guilds:
+        try:
+            invites[guild.id] = await guild.invites()
+        except:
+            invites[guild.id] = []
+
+@bot.event
+async def on_member_join(member):
+    guild = member.guild
+    before = invites.get(guild.id, [])
+    after = await guild.invites()
+    invites[guild.id] = after
+
+    used_invite = "Unknown"
+    for i in after:
+        for b in before:
+            if i.code == b.code and i.uses > b.uses:
+                used_invite = i.code
+
+    account_age = (datetime.utcnow() - member.created_at).days
+    is_fake = account_age < FAKE_DAYS
+
+    joins[member.id] = {
+        "invite": used_invite,
+        "fake": is_fake
+    }
+
+    # ---------- AUTO ROLE ----------
+    role_id = FAKE_ROLE_ID if is_fake else REAL_ROLE_ID
+    role = guild.get_role(role_id)
+
+    if role:
+        try:
+            await member.add_roles(role)
+        except:
+            pass
+
+# ---------- COMMANDS ----------
+
+@bot.command()
+async def ip(ctx):
+    await ctx.send(f"🎮 **Server IP:** `{SERVER_IP}`")
+
+@bot.command()
+async def i(ctx):
+    total = len(joins)
+    fake = sum(1 for j in joins.values() if j["fake"])
+    real = total - fake
+
+    await ctx.send(
+        "**📊 Invite Stats**\n"
+        f"🔗 Total Joins: **{total}**\n"
+        f"✅ Real Users: **{real}**\n"
+        f"🚫 Fake Users: **{fake}**\n"
+        f"🛡️ Fake check: Account < {FAKE_DAYS} days old"
+    )
+
+@bot.command()
+async def helpme(ctx):
+    await ctx.send(
+        "**🤖 Bot Commands**\n"
+        "`-ip` → Server IP\n"
+        "`-i` → Invite stats\n"
+        "`-helpme` → Show commands"
+    )
+
+# ---------- RUN ----------
+bot.run("MTQ2NjA3NDcxNzgzOTY5MTkwOQ.Gfo1b8.KN917it4uXi_i4SxFwhcmwfuAyGosGE_Q1BXrM")
